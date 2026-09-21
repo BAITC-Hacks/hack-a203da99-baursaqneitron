@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Классификатор обращений</title>
+<style>
+  :root {
+    --bg: #080a14;
+    --panel: rgba(255, 255, 255, 0.045);
+    --panel-2: rgba(255, 255, 255, 0.03);
+    --border: rgba(255, 255, 255, 0.09);
+    --text: #eef0ff;
+    --muted: #8b91b8;
+    --spravka: #5b9dff;
+    --zhaloba: #ff6b7a;
+    --drug: #b78cff;
+    --ok: #46e39b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    color: var(--text);
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    overflow-x: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -30%;
+    background:
+      radial-gradient(45% 45% at 15% 20%, rgba(91,157,255,.22), transparent 60%),
+      radial-gradient(40% 40% at 85% 15%, rgba(183,140,255,.20), transparent 60%),
+      radial-gradient(45% 45% at 70% 85%, rgba(255,107,122,.14), transparent 60%);
+    animation: drift 22s ease-in-out infinite alternate;
+    z-index: -1;
+  }
+  @keyframes drift {
+    0% { transform: translate3d(0,0,0) scale(1); }
+    100% { transform: translate3d(-4%, 3%, 0) scale(1.08); }
+  }
+  header {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 34px 24px 10px;
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+    letter-spacing: -.02em;
+    background: linear-gradient(100deg, #fff 10%, var(--spravka) 55%, var(--drug) 95%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  header p { margin: 0; color: var(--muted); max-width: 640px; }
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 14px 24px 60px;
+    display: grid;
+    grid-template-columns: minmax(300px, 430px) 1fr;
+    gap: 22px;
+    align-items: start;
+  }
+  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 18px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  textarea {
+    width: 100%;
+    min-height: 340px;
+    resize: vertical;
+    background: rgba(0, 0, 0, .25);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px;
+    font: 14px/1.65 ui-monospace, "Cascadia Code", Consolas, monospace;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  textarea:focus {
+    border-color: rgba(91,157,255,.7);
+    box-shadow: 0 0 0 4px rgba(91,157,255,.14);
+  }
+  .hint { color: var(--muted); font-size: 12px; margin: 10px 2px 0; }
+  .actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    background: linear-gradient(135deg, var(--spravka), #7d6bff);
+    color: #fff;
+    border: none;
+    border-radius: 11px;
+    padding: 10px 15px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .12s, filter .2s, box-shadow .2s;
+    box-shadow: 0 8px 20px rgba(91,157,255,.25);
+  }
+  button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  button:active { transform: translateY(0); }
+  button.ghost {
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border);
+    color: var(--text);
+    box-shadow: none;
+  }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat {
+    background: rgba(255,255,255,.05);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 13px;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .stat b { color: var(--text); font-size: 14px; }
+  .stat .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .results { display: flex; flex-direction: column; gap: 14px; }
+  .card {
+    position: relative;
+    background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--drug);
+    border-radius: 14px;
+    padding: 14px 16px;
+    transition: transform .15s, border-color .2s, box-shadow .2s;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,.35); }
+  .card.spravka { border-left-color: var(--spravka); }
+  .card.zhaloba { border-left-color: var(--zhaloba); }
+  .card.drug { border-left-color: var(--drug); }
+  .card.enter { animation: enter .32s cubic-bezier(.2,.8,.3,1); }
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    padding: 4px 12px;
+    border-radius: 999px;
+    text-transform: lowercase;
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }
+  .badge.spravka { background: rgba(91,157,255,.15); color: var(--spravka); }
+  .badge.zhaloba { background: rgba(255,107,122,.15); color: var(--zhaloba); }
+  .badge.drug { background: rgba(183,140,255,.15); color: var(--drug); }
+  .meter { width: 120px; height: 6px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; display: flex; }
+  .meter i { display: block; height: 100%; transition: width .25s ease; }
+  .meter .c { background: linear-gradient(90deg, #ff6b7a, #ff9a6b); }
+  .meter .i { background: linear-gradient(90deg, #5b9dff, #7d6bff); }
+  .msg { font-weight: 600; margin-bottom: 10px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .chip {
+    font-size: 11.5px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.04);
+    color: var(--muted);
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .chip.c { color: var(--zhaloba); border-color: rgba(255,107,122,.35); background: rgba(255,107,122,.08); }
+  .chip.i { color: var(--spravka); border-color: rgba(91,157,255,.35); background: rgba(91,157,255,.08); }
+  .chip.none { opacity: .6; }
+  .answer { color: #c9cdf0; font-size: 14px; border-top: 1px dashed var(--border); padding-top: 10px; }
+  .empty { color: var(--muted); padding: 40px; text-align: center; }
+  .live { margin-left: auto; font-size: 11px; letter-spacing: .08em; color: var(--ok); display: inline-flex; align-items: center; gap: 6px; }
+  .live .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: pulse 1.6s infinite; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(70,227,155,.5); }
+    50% { box-shadow: 0 0 0 6px rgba(70,227,155,0); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Классификатор обращений</h1>
+  <p>Впиши обращения (по одному на строку) — категория, сработавшие слова и черновик ответа появятся сразу.</p>
+</header>
+
+<div class="wrap">
+  <section class="panel">
+    <h2>Обращения</h2>
+    <textarea id="input" spellcheck="false">Как получить справку о месте учёбы?
+В столовой очередь, еда холодная.
+Хочу записаться на консультацию завтра.
+Пропал Wi-Fi в корпусе B.
+Где парковка для гостей?</textarea>
+    <p class="hint">Пустые строки пропускаются. Всё считается в браузере, интернет не нужен.</p>
+    <div class="actions">
+      <button id="download">Скачать messages_out.txt</button>
+      <button id="copy" class="ghost">Скопировать результат</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Результат <span class="live"><span class="pulse"></span>live</span></h2>
+    <div class="stats" id="stats"></div>
+    <div class="results" id="results"></div>
+  </section>
+</div>
+
+<script>
+const STRONG_COMPLAINT_MARKERS = [
+  "не работает", "не работают", "не работал", "не работала", "не работало",
+  "не включается", "не включают", "не включён", "не включен",
+  "не открывается", "не открыть", "не загружается", "не грузится",
+  "не приходит", "не пришла", "не пришел", "не пришли", "не приехал", "не приехала",
+  "не поступил", "не поступили", "не поступает",
+  "не получил", "не получила", "не получили", "не получается",
+  "не подали", "не приняли", "не вернул", "не вернули", "не проходит",
+  "пропал", "пропала", "пропало", "пропали", "пропадает",
+  "сломал", "сломался", "сломалась", "сломались", "поломк", "поломал",
+  "неисправн", "очеред", "холодн", "жарко", "душно", "грязн", "грязь",
+  "жалоб", "претенз", "недовол", "неудовлетвор",
+  "плох", "отвратител", "ужасн", "кошмар", "ужас",
+  "медленно", "медленн", "тормозит", "зависает", "вылетает",
+  "ошибк", "ошиблись", "ошибочн", "неверн", "неправильн",
+  "не хватает", "не хватило",
+  "нет денег", "нет средств", "нет стипендии", "нет зарплаты", "нет выплат",
+  "нет света", "нет воды", "нет интернета", "нет связи", "нет wi-fi",
+  "нет wifi", "нет отопления", "почему нет", "деньги не", "не пришли деньги",
+  "не дали", "не выдали", "не выплатил", "не начислили", "не зачислили",
+  "задержал", "задержк", "задерживают",
+  "украл", "украли", "обман", "мошенн", "обманули",
+  "не отвечают", "не отвечает", "игнорир", "молчат",
+  "долго не", "ждал уже", "ждала уже", "третий день", "второй день",
+  "не меняли", "не починили", "не убрали", "не убирают",
+  "воняет", "вонь", "запах", "шумит", "шумно", "громко",
+  "течет", "течёт", "протекает", "капает",
+  "не греет", "не горит", "не светит", "перегорел",
+  "разбит", "треснут", "царапин", "дефект", "брак",
+  "не могу", "не можем", "невозможно", "никак не",
+  "не пускают", "не пускает", "заблокирован", "нет доступа",
+  "не сохраняется", "перебои", "сбой", "сбои", "отключили", "отключён", "отключен",
+  "потерял", "потеряла", "пропустил", "опоздал",
+  "грубо", "хамств", "нахамил",
+  "дорого", "завышен", "переплат", "списали",
+  "не соответствует", "некачественн",
+  "жалу", "сколько можно", "надоел"
+];
+
+const WEAK_COMPLAINT_MARKERS = [
+  "проблем", "сложност", "неудобн", "недостат", "недостаточно",
+  "не нравится", "раздража", "неприятн", "разочаров", "беспокоит",
+  "нарекани", "сомнительн", "странн", "мешает"
+];
+
+const INFO_LEAD_MARKERS = [
+  "как", "каким образом", "где", "куда", "откуда", "когда", "во сколько",
+  "в какое время", "до скольки", "сколько", "какой", "какая", "какое",
+  "какие", "каких", "можно ли", "возможно ли", "есть ли", "имеется ли",
+  "подскажи", "подскажите", "скажите", "уточнить", "уточните",
+  "расскажите", "объясните", "поясните", "интересует", "хочу узнать",
+  "хочу уточнить", "хотел бы узнать", "что нужно", "что требуется",
+  "какие документы", "какие условия", "где взять", "где найти",
+  "где получить", "где находится", "действует ли", "проконсультируйте"
+];
+
+const INFO_TOPIC_MARKERS = [
+  "справк", "документ", "адрес", "контакт", "телефон", "номер",
+  "график", "расписание", "режим работы", "часы работы", "время работы",
+  "стоимост", "цена", "прайс", "тариф", "сколько стоит", "информаци",
+  "условия", "требования", "правила", "сроки", "срок", "варианты",
+  "помощь", "поддержка", "парковк", "расположен", "находится",
+  "как получить", "как оформить", "как подать", "как записаться",
+  "как включить", "как открыть", "как попасть", "как добраться",
+  "как найти", "как пользоваться", "как оплатить", "как заказать",
+  "как проверить", "как узнать", "нужен", "нужна", "нужно", "нужны",
+  "требуется", "надо ли", "возможно", "можно"
+];
+
+const TOPIC_ANSWERS = [
+  [["парковк"], "Гостевая парковка — у главного входа корпуса A, указатели от проходной. Для длительного визита оформите гостевой пропуск на ресепшене."],
+  [["справк"], "Справку о месте учёбы выдаёт учебный отдел (каб. 101, пн–пт 9:00–17:00) или портал студента. Готовность — 1 рабочий день."],
+  [["wi-fi", "wifi", "интернет", "сеть"], "Заявка о неполадке Wi-Fi передана технической службе корпуса. Попробуйте переподключиться и перезагрузить устройство; если не помогло — работаем по заявке."],
+  [["столов", "еда", "очеред", "буфет"], "Передали в администрацию столовой: ускорим обслуживание и проверим температуру блюд. Спасибо за сигнал."],
+  [["туалет", "санузл", "wc"], "Заявку принял хозяйственный отдел — сантехник устранит неполадку в течение рабочего дня."],
+  [["утюг", "гладил"], "Утюг: залейте воду, подключите к розетке и нажмите кнопку на ручке. Если не греет — заменим по заявке в хозчасти."],
+  [["деньг", "стипенди", "зарплат", "выплат", "перевод"], "Обращение по выплатам передано в финансовый отдел. Проверим начисление; уточните реквизиты в бухгалтерии (каб. 204)."]
+];
+
+const DRAFTS = {
+  "справка": "Здравствуйте! Эту информацию можно получить в учебном отделе (каб. 101, пн–пт с 9:00 до 17:00) или через портал студента. Напишите, если нужны подробности.",
+  "жалоба": "Здравствуйте! Спасибо, что сообщили о проблеме. Мы передали обращение в ответственный отдел и разберёмся в ближайшее время. Приносим извинения за неудобства.",
+  "другое": "Здравствуйте! Ваше обращение принято. Подскажите, пожалуйста, удобные дату и время, — мы подтвердим запись."
+};
+
+const CLASS = { "справка": "spravka", "жалоба": "zhaloba", "другое": "drug" };
+
+function dedupe(markers) {
+  return markers.filter(m => !markers.some(o => o !== m && o.includes(m)));
+}
+
+function score(text) {
+  const lower = text.toLowerCase();
+  const strong = dedupe(STRONG_COMPLAINT_MARKERS.filter(m => lower.includes(m)));
+  const weak = dedupe(WEAK_COMPLAINT_MARKERS.filter(m => lower.includes(m)));
+  const lead = dedupe(INFO_LEAD_MARKERS.filter(m => lower.includes(m)));
+  const topic = dedupe(INFO_TOPIC_MARKERS.filter(m => lower.includes(m)));
+  return {
+    complaint: 3 * strong.length + weak.length,
+    info: 2 * lead.length + topic.length,
+    matchedComplaint: strong.concat(weak),
+    matchedInfo: lead.concat(topic)
+  };
+}
+
+function classify(text) {
+  const s = score(text);
+  if (s.complaint === 0 && s.info === 0) return "другое";
+  return s.complaint >= s.info ? "жалоба" : "справка";
+}
+
+function answer(text, category) {
+  const lower = text.toLowerCase();
+  for (const [keys, ans] of TOPIC_ANSWERS) {
+    if (keys.some(k => lower.includes(k))) return ans;
+  }
+  return DRAFTS[category];
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+const input = document.getElementById("input");
+const results = document.getElementById("results");
+const stats = document.getElementById("stats");
+let lastRows = [];
+let prevCount = 0;
+
+function render() {
+  const lines = input.value.split("\n").map(l => l.trim()).filter(Boolean);
+  const counts = { "справка": 0, "жалоба": 0, "другое": 0 };
+  lastRows = [];
+  results.innerHTML = "";
+
+  if (lines.length === 0) {
+    results.innerHTML = '<div class="empty">Введите хотя бы одно обращение слева.</div>';
+    stats.innerHTML = "";
+    prevCount = 0;
+    return;
+  }
+
+  lines.forEach((line, idx) => {
+    const category = classify(line);
+    const s = score(line);
+    const ans = answer(line, category);
+    counts[category]++;
+    lastRows.push(`${line} | ${category} | ${ans}`);
+
+    const total = Math.max(s.complaint + s.info, 1);
+    const chips = [];
+    s.matchedComplaint.forEach(m => chips.push(`<span class="chip c">${escapeHtml(m)}</span>`));
+    s.matchedInfo.forEach(m => chips.push(`<span class="chip i">${escapeHtml(m)}</span>`));
+    if (chips.length === 0) chips.push('<span class="chip none">маркеры не найдены</span>');
+
+    const card = document.createElement("div");
+    card.className = "card " + CLASS[category] + (idx >= prevCount ? " enter" : "");
+    card.innerHTML =
+      `<div class="head">` +
+        `<span class="badge ${CLASS[category]}"><span class="dot"></span>${category}</span>` +
+        `<span class="meter" title="жалоба ${s.complaint} · справка ${s.info}">` +
+          `<i class="c" style="width:${(s.complaint / total) * 100}%"></i>` +
+          `<i class="i" style="width:${(s.info / total) * 100}%"></i>` +
+        `</span>` +
+      `</div>` +
+      `<div class="msg">${escapeHtml(line)}</div>` +
+      `<div class="chips">${chips.join("")}</div>` +
+      `<div class="answer">${escapeHtml(ans)}</div>`;
+    results.appendChild(card);
+  });
+
+  stats.innerHTML =
+    `<span class="stat">Всего: <b>${lines.length}</b></span>` +
+    `<span class="stat"><span class="dot" style="background:var(--spravka)"></span>Справка: <b>${counts["справка"]}</b></span>` +
+    `<span class="stat"><span class="dot" style="background:var(--zhaloba)"></span>Жалоба: <b>${counts["жалоба"]}</b></span>` +
+    `<span class="stat"><span class="dot" style="background:var(--drug)"></span>Другое: <b>${counts["другое"]}</b></span>`;
+
+  prevCount = lines.length;
+}
+
+input.addEventListener("input", render);
+
+document.getElementById("download").addEventListener("click", () => {
+  const blob = new Blob([lastRows.join("\n") + "\n"], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "messages_out.txt";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+document.getElementById("copy").addEventListener("click", async (e) => {
+  try {
+    await navigator.clipboard.writeText(lastRows.join("\n"));
+    e.target.textContent = "Скопировано";
+  } catch {
+    e.target.textContent = "Не вышло";
+  }
+  setTimeout(() => (e.target.textContent = "Скопировать результат"), 1200);
+});
+
+render();
+</script>
+</body>
+</html>
